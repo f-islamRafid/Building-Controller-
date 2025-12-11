@@ -24,7 +24,7 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True)
     password_hash = db.Column(db.String(200))
     role = db.Column(db.String(20), default='resident') 
-    
+#ok
     # Extra fields from your Family class
     phone = db.Column(db.String(20))
     nid = db.Column(db.String(50))
