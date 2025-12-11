@@ -1,31 +1,38 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // Importing your existing Auth Context
-import '../App.css'; // Ensuring styles are applied
+// We remove 'useNavigate' because we are using window.location for a hard fix
+import { Link } from 'react-router-dom'; 
+import { useAuth } from '../context/AuthContext';
+import '../App.css';
 
 const Login = () => {
-  // 1. State to hold the user's input
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // 2. Hooks for navigation and auth
-  const navigate = useNavigate();
-  const { login } = useAuth(); // Assuming your AuthContext exposes a 'login' function
+  const { login } = useAuth();
 
-  // 3. Function to handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); // Clear previous errors
+    setError('');
 
     try {
-      // Call the login function from your AuthContext
-      await login(email, password);
-      // If successful, redirect to the dashboard
-      navigate('/dashboard');
+      console.log("Submitting login for:", email); // Debug Log
+      
+      // 1. Wait for the login API call to finish
+      const success = await login(email, password);
+
+      // 2. FORCE NAVIGATION (The Fix)
+      // Instead of navigate(), we force the browser to go to dashboard.
+      // This ensures AuthContext reads the token from localStorage fresh.
+      if (success) {
+        console.log("Login success! Redirecting...");
+        window.location.href = '/dashboard';
+      }
+
     } catch (err) {
-      console.error(err);
-      setError('Failed to sign in. Please check your credentials.');
+      console.error("Login Error:", err);
+      // Show a clear error message on the screen
+      setError(err.message || "Failed to sign in. Check backend connection.");
     }
   };
 
@@ -33,10 +40,21 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         <h2>Welcome Back</h2>
-        <p className="subtitle">Please enter your details to sign in.</p>
+        <p className="subtitle">Enter credentials to sign in.</p>
 
-        {/* Display error message if login fails */}
-        {error && <div className="error-message" style={{color: '#ff6b6b', marginBottom: '15px'}}>{error}</div>}
+        {/* Error Message Box */}
+        {error && (
+            <div style={{
+                backgroundColor: '#ff6b6b', 
+                color: 'white', 
+                padding: '10px', 
+                borderRadius: '5px', 
+                marginBottom: '15px', 
+                fontSize: '0.9rem'
+            }}>
+                {error}
+            </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">

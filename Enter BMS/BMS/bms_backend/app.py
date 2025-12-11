@@ -239,11 +239,12 @@ def seed_database():
         admin = User(
             full_name="System Admin",
             email="admin@bms.com",
-            password_hash=generate_password_hash("admin123"),
+            password_hash=generate_password_hash("ABCdef123@"),
             role="admin"
         )
         db.session.add(admin)
         db.session.commit()
+        print("Login Sucessful")
 
 if __name__ == '__main__':
     with app.app_context():
