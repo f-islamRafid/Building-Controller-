@@ -22,7 +22,7 @@ const BMS_Frontend = () => {
     // Data State
     const [residents, setResidents] = useState([]);
     const [notices, setNotices] = useState([]);
-    const [privateNotices, setPrivateNotices] = useState([]); // NEW
+    const [privateNotices, setPrivateNotices] = useState([]);
     const [complaints, setComplaints] = useState([]);
     const [vacantFlatsList, setVacantFlatsList] = useState([]);
     const [messages, setMessages] = useState([]);
@@ -36,7 +36,7 @@ const BMS_Frontend = () => {
             alert("❌ Error: " + errorMsg);
         } catch (e) {
             console.error("Server Error:", e);
-            alert("❌ Critical Server Error. Check Python Terminal.");
+            alert("❌ Critical Server Error (500). Check Python Terminal.");
         }
         return false;
     };
@@ -73,7 +73,7 @@ const BMS_Frontend = () => {
         fetchVacant();
         fetchComplaints();
         fetchMessages();
-        fetchPrivateNotices(); // NEW
+        fetchPrivateNotices();
         if (user.role === 'admin') fetchResidents();
 
         socket.on('receive_message', (data) => setMessages((prev) => [...prev, data]));
@@ -123,7 +123,6 @@ const BMS_Frontend = () => {
         if (await handleResponse(res)) { alert("✅ Public Notice Posted!"); fetchNotices(); e.target.reset(); }
     };
     
-    // NEW: SEND PRIVATE NOTICE
     const handleSendPrivateNotice = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -206,10 +205,8 @@ const BMS_Frontend = () => {
                 
                 {activeTab === 'notices' && <div>
                     {privateNotices.length > 0 && <div style={{marginBottom:'30px'}}><h3 className="section-title" style={{color:'#e17055'}}>🔔 Personal Alerts</h3><div className="stats-grid">{privateNotices.map(n=><div key={n.id} className="stat-card" style={{borderLeft:'5px solid #e17055'}}><h3 style={{color:'#e17055'}}>🔒 {n.title}</h3><small>{n.date}</small><p>{n.content}</p></div>)}</div></div>}
-                    
                     {user.role === 'admin' && <div style={{display:'flex', gap:'20px', flexWrap:'wrap'}}><div className="form-container" style={{flex:1}}><h3 className="section-title">Post Public Notice</h3><form onSubmit={handlePostNotice}><input type="text" name="title" className="form-control" required placeholder="Title" style={{marginBottom:'10px'}}/><textarea name="content" className="form-control" rows="3" required placeholder="Content"></textarea><button type="submit" className="btn-primary" style={{marginTop:'10px'}}>Post Public</button></form></div>
                     <div className="form-container" style={{flex:1, border:'1px solid #e17055'}}><h3 className="section-title" style={{color:'#e17055'}}>Send Private Notice</h3><form onSubmit={handleSendPrivateNotice}><div className="form-group"><label>Select Resident</label><select name="user_id" className="form-control" required><option value="">-- Select Flat --</option>{residents.map(r=><option key={r.id} value={r.id}>{r.name} (Flat {r.flat})</option>)}</select></div><input type="text" name="title" className="form-control" required placeholder="Warning Title" style={{marginBottom:'10px'}}/><textarea name="content" className="form-control" rows="1" required placeholder="Message..."></textarea><button type="submit" className="btn-primary" style={{marginTop:'10px', background:'#e17055'}}>Send Private</button></form></div></div>}
-                    
                     <h3 className="section-title" style={{marginTop:'30px'}}>📢 Building Notices</h3><div className="stats-grid">{notices.map(n=><div key={n.id} className="stat-card blue"><h3>{n.title}</h3><small>{n.date_posted}</small><p>{n.content}</p>{user.role==='admin'&&<button className="btn-danger" style={{marginTop:'10px'}} onClick={()=>handleDeleteNotice(n.id)}>Delete</button>}</div>)}</div>
                 </div>}
                 
@@ -217,6 +214,12 @@ const BMS_Frontend = () => {
                 {activeTab === 'vacant' && <div className="content-section"><h3 className="section-title">Vacant Flats</h3><div style={{display:'flex',gap:'15px',flexWrap:'wrap'}}>{vacantFlatsList.map(f=><div key={f} style={{padding:'20px',background:'var(--hover-color)',borderRadius:'10px',fontWeight:'bold', color:'var(--text-main)'}}>Flat {f}</div>)}</div></div>}
                 {activeTab === 'chat' && <div className="chat-window"><div className="chat-messages">{messages.map((m,i)=><div key={i} className={`message ${m.sender===user?.name?'sent':'received'}`}><strong>{m.sender}</strong><br/>{m.text}</div>)}</div><form className="chat-input-area" onSubmit={handleSendMessage}><input type="text" value={messageInput} onChange={e=>setMessageInput(e.target.value)} className="form-control" placeholder="Type a message..."/><button type="submit" className="btn-primary">Send</button></form></div>}
                 {activeTab === 'settings' && <div className="form-container"><h3 className="section-title">Change Password</h3><form onSubmit={handleChangePassword}><div className="form-group"><label>Old Password</label><input type="password" name="old_password" className="form-control" required /></div><div className="form-group"><label>New Password</label><input type="password" name="new_password" className="form-control" required minLength="6"/></div><div className="form-group"><label>Confirm New Password</label><input type="password" name="confirm_password" className="form-control" required minLength="6"/></div><button type="submit" className="btn-primary">Update Password</button></form></div>}
+                
+                {/* --- BUILDING ADDRESS FOOTER --- */}
+                <div className="building-footer">
+                    <p><strong>Building Address:</strong> Road-01, Block-I, Lane-05, Halishahar Housing Estate, Chattogram 4216</p>
+                    <p><strong>Constructed:</strong> 2024 | <strong>Building No:</strong> 30/32</p>
+                </div>
             </main>
         </div>
     );
