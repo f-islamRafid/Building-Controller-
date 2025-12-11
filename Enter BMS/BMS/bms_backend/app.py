@@ -79,6 +79,14 @@ def login():
         return jsonify({"status": "success", "token": token, "role": user.role, "full_name": user.full_name, "user_id": user.id})
     return jsonify({"status": "error", "message": "Invalid Email or Password"}), 401
 
+
+# --- SYSTEM SETUP ROUTE (Run Once) ---
+@app.route('/api/setup_system', methods=['GET'])
+def setup_system():
+    db.create_all()
+    seed_database()
+    return jsonify({"status": "success", "message": "Database Created & Admin (admin@bms.com) Reset!"})
+
 @app.route("/api/change_password", methods=['POST'])
 @jwt_required()
 def change_password():
