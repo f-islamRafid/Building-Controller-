@@ -5,7 +5,7 @@ import io from 'socket.io-client';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './App.css';
 
-const socket = io('http://127.0.0.1:5000');
+const socket = io('https://bms-backend-9d34.onrender.com');
 
 const BMS_Frontend = () => {
     const { user, logout } = useAuth();
@@ -109,31 +109,31 @@ const BMS_Frontend = () => {
 
     // --- FETCHING DATA ---
     const fetchStats = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/stats');
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/stats');
         if(res.ok) setStats(await res.json());
     };
     const fetchResidents = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/admin/users', { headers: { 'Authorization': `Bearer ${user.token}` } });
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/admin/users', { headers: { 'Authorization': `Bearer ${user.token}` } });
         if(res.ok) setResidents(await res.json());
     };
     const fetchVacant = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/apartments/vacant');
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/apartments/vacant');
         if(res.ok) setVacantFlatsList(await res.json());
     };
     const fetchNotices = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/notices');
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/notices');
         if(res.ok) setNotices(await res.json());
     };
     const fetchPrivateNotices = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/my_private_notices', { headers: { 'Authorization': `Bearer ${user.token}` } });
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/my_private_notices', { headers: { 'Authorization': `Bearer ${user.token}` } });
         if(res.ok) setPrivateNotices(await res.json());
     };
     const fetchComplaints = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/complaints', { headers: { 'Authorization': `Bearer ${user.token}` } });
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/complaints', { headers: { 'Authorization': `Bearer ${user.token}` } });
         if(res.ok) setComplaints(await res.json());
     };
     const fetchMessages = async () => {
-        const res = await fetch('http://127.0.0.1:5000/api/messages', { headers: { 'Authorization': `Bearer ${user.token}` } });
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/messages', { headers: { 'Authorization': `Bearer ${user.token}` } });
         if(res.ok) setMessages(await res.json());
     };
 
@@ -165,7 +165,7 @@ const BMS_Frontend = () => {
             nid: formData.get('nid'), flat: formData.get('flat'),
             members: parseInt(formData.get('members')), phone: formData.get('phone')
         };
-        const res = await fetch('http://127.0.0.1:5000/api/admin/add_family', {
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/admin/add_family', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify(payload)
         });
@@ -177,14 +177,14 @@ const BMS_Frontend = () => {
     };
     const handleRemoveFamily = async (id) => {
         if(window.confirm("Remove family?")) {
-            const res = await fetch(`http://127.0.0.1:5000/api/admin/user/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${user.token}` } });
+            const res = await fetch(`https://bms-backend-9d34.onrender.com/api/admin/user/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${user.token}` } });
             if (await handleResponse(res)) { fetchResidents(); fetchStats(); }
         }
     };
     const handlePostNotice = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const res = await fetch('http://127.0.0.1:5000/api/admin/notices', {
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/admin/notices', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ title: formData.get('title'), content: formData.get('content') })
         });
@@ -193,7 +193,7 @@ const BMS_Frontend = () => {
     const handleSendPrivateNotice = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const res = await fetch('http://127.0.0.1:5000/api/admin/private_notice', {
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/admin/private_notice', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ user_id: formData.get('user_id'), title: formData.get('title'), content: formData.get('content') })
         });
@@ -201,21 +201,21 @@ const BMS_Frontend = () => {
     };
     const handleDeleteNotice = async (id) => {
         if (window.confirm("Delete notice?")) {
-            const res = await fetch(`http://127.0.0.1:5000/api/notices/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${user.token}` } });
+            const res = await fetch(`https://bms-backend-9d34.onrender.com/api/notices/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${user.token}` } });
             if (await handleResponse(res)) { fetchNotices(); fetchStats(); }
         }
     };
     const handlePostComplaint = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const res = await fetch('http://127.0.0.1:5000/api/complaints', {
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/complaints', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ subject: formData.get('subject'), description: formData.get('description') })
         });
         if (await handleResponse(res)) { alert("✅ Complaint Sent!"); fetchComplaints(); fetchStats(); e.target.reset(); }
     };
     const handleUpdateComplaint = async (id, newStatus) => {
-        const res = await fetch(`http://127.0.0.1:5000/api/complaints/${id}`, {
+        const res = await fetch(`https://bms-backend-9d34.onrender.com/api/complaints/${id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ status: newStatus })
         });
@@ -227,7 +227,7 @@ const BMS_Frontend = () => {
         const password = formData.get('new_password');
         const confirm = formData.get('confirm_password');
         if (password !== confirm) { alert("❌ Passwords do not match!"); return; }
-        const res = await fetch('http://127.0.0.1:5000/api/change_password', {
+        const res = await fetch('https://bms-backend-9d34.onrender.com/api/change_password', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ old_password: formData.get('old_password'), new_password: password })
         });
