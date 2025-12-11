@@ -107,7 +107,25 @@ body {
 /* --- DASHBOARD --- */
 .dashboard-layout { display: flex; height: 100vh; background-color: var(--bg-color); overflow: hidden; }
 .sidebar { width: 260px; background: var(--sidebar-bg); margin: 15px; border-radius: 20px; display: flex; flex-direction: column; padding: 25px; box-shadow: 0 10px 30px var(--shadow); }
-.logo-section h2 { color: var(--accent-color); font-size: 1.5rem; margin-bottom: 40px; font-weight: 700; text-align: center; }
+
+/* --- LOGO IMAGE STYLE --- */
+
+.logo-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 1px; /* Reduced margin since logo is bigger */
+    padding: 0; /* Remove padding to use full space */
+}
+
+.sidebar-logo {
+    width: 150%;      /* Forces logo to take full width of the sidebar */
+    height: auto;     /* Maintains the aspect ratio */
+    max-height: 200px; /* Optional: Stops it from getting too tall if the image is huge */
+    object-fit: contain; /* Ensures the whole logo is visible */
+    display: block;
+}
+
 .nav-links { list-style: none; flex-grow: 1; }
 .nav-item { padding: 15px 20px; margin-bottom: 10px; border-radius: 12px; color: var(--text-secondary); cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 10px; }
 .nav-item:hover { background: var(--hover-color); }
@@ -119,6 +137,8 @@ body {
 .header-welcome { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); }
 .header-welcome h1 { font-size: 1.8rem; color: var(--text-main); }
 .date-badge { background: var(--accent-gradient); color: white; padding: 10px 25px; border-radius: 50px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3); }
+.prayer-badge { background: linear-gradient(135deg, #00b894, #55efc4); color: white; padding: 8px 20px; border-radius: 50px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 4px 15px rgba(0, 184, 148, 0.3); white-space: nowrap; }
+[data-theme="dark"] .prayer-badge { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4); }
 
 /* CARDS & FORMS */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 25px; margin-bottom: 40px; }
