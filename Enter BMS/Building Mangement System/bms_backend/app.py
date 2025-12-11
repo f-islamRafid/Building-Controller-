@@ -30,7 +30,7 @@ class User(db.Model):
     nid = db.Column(db.String(50))
     members_count = db.Column(db.Integer)
 
-    # Relationship to Apartment
+    
     apartment = db.relationship('Apartment', backref='resident', uselist=False)
 
 class Apartment(db.Model):
