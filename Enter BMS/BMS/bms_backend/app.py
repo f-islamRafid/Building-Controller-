@@ -1,7 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
 
-
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -11,9 +10,10 @@ from flask_socketio import SocketIO, emit
 import datetime
 
 app = Flask(__name__)
-# Allow CORS for both API and WebSockets
+
+# --- 1. NUCLEAR CORS FIX (Allow Vercel to talk to Render) ---
 CORS(app, resources={r"/*": {"origins": "*"}})
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # --- CONFIGURATION ---
 app.config["JWT_SECRET_KEY"] = "bms-secret-key"
@@ -79,14 +79,6 @@ def login():
         return jsonify({"status": "success", "token": token, "role": user.role, "full_name": user.full_name, "user_id": user.id})
     return jsonify({"status": "error", "message": "Invalid Email or Password"}), 401
 
-
-# --- SYSTEM SETUP ROUTE (Run Once) ---
-@app.route('/api/setup_system', methods=['GET'])
-def setup_system():
-    db.create_all()
-    seed_database()
-    return jsonify({"status": "success", "message": "Database Created & Admin (admin@bms.com) Reset!"})
-
 @app.route("/api/change_password", methods=['POST'])
 @jwt_required()
 def change_password():
@@ -112,7 +104,6 @@ def get_user_info():
         "nid": user.nid, "members": user.members_count, "flat_no": flat_no, "role": user.role
     })
 
-# --- NEW: PUBLIC STATS ROUTE (Fixes Count Issue) ---
 @app.route("/api/stats", methods=['GET'])
 def get_stats():
     total_flats = Apartment.query.count()
@@ -291,7 +282,12 @@ def handle_message(data):
     db.session.commit()
     emit('receive_message', data, broadcast=True)
 
-def seed_database():
+# --- 2. NUCLEAR ADMIN FIX (Auto-Run on Start) ---
+# This block runs every time Render starts/restarts the server.
+with app.app_context():
+    db.create_all()
+    
+    # Create Flats if missing
     if not Apartment.query.first():
         print("Creating Building Flats...")
         floors = 5
@@ -302,15 +298,15 @@ def seed_database():
                 db.session.add(Apartment(unit_number=unit_num, floor=f))
         db.session.commit()
 
-    if not User.query.filter_by(role='admin').first():
+    # Create Admin if missing
+    if not User.query.filter_by(email="admin@bms.com").first():
         print("Creating Default Admin...")
         admin = User(full_name="System Admin", email="admin@bms.com", password_hash=generate_password_hash("ABCdef123@"), role="admin")
         db.session.add(admin)
         db.session.commit()
-        print("Login Successful")
+        print("✅ ADMIN CREATED: admin@bms.com / ABCdef123@")
+    else:
+        print("ℹ️ ADMIN ALREADY EXISTS")
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        seed_database()
     socketio.run(app, port=5000, debug=True)
