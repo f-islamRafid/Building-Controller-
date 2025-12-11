@@ -283,7 +283,6 @@ def handle_message(data):
     emit('receive_message', data, broadcast=True)
 
 # --- 2. NUCLEAR ADMIN FIX (Auto-Run on Start) ---
-# This block runs every time Render starts/restarts the server.
 with app.app_context():
     db.create_all()
     
@@ -298,15 +297,18 @@ with app.app_context():
                 db.session.add(Apartment(unit_number=unit_num, floor=f))
         db.session.commit()
 
-    # Create Admin if missing
-    if not User.query.filter_by(email="admin@bms.com").first():
-        print("Creating Default Admin...")
-        admin = User(full_name="System Admin", email="admin@bms.com", password_hash=generate_password_hash("ABCdef123@"), role="admin")
+    # --- FORCE ADMIN RESET (Fixes "Login Failed") ---
+    admin = User.query.filter_by(email="admin@bms.com").first()
+    
+    # If admin doesn't exist, create him
+    if not admin:
+        admin = User(full_name="System Admin", email="admin@bms.com", role="admin")
         db.session.add(admin)
-        db.session.commit()
-        print("✅ ADMIN CREATED: admin@bms.com / ABCdef123@")
-    else:
-        print("ℹ️ ADMIN ALREADY EXISTS")
+    
+    # ALWAYS reset the password to the correct one
+    admin.password_hash = generate_password_hash("ABCdef123@")
+    db.session.commit()
+    print("✅ ADMIN READY: admin@bms.com / ABCdef123@")
 
 if __name__ == '__main__':
     socketio.run(app, port=5000, debug=True)

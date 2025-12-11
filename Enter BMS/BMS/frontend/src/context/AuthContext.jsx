@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      
       const response = await fetch('https://bms-backend-9d34.onrender.com/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

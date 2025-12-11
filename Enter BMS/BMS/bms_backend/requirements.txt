@@ -12,6 +12,6 @@ itsdangerous
 click
 blinker
 greenlet
-gunicorn
-eventlet
+gunicorn==20.1.0
+eventlet==0.33.3
 Flask-SocketIO
