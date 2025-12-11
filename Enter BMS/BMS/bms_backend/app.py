@@ -42,10 +42,9 @@ class Notice(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
 
-# NEW: Private Notice (One-to-One)
 class PrivateNotice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # Who gets the message
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
@@ -101,6 +100,24 @@ def get_user_info():
         "nid": user.nid, "members": user.members_count, "flat_no": flat_no, "role": user.role
     })
 
+# --- NEW: PUBLIC STATS ROUTE (Fixes Count Issue) ---
+@app.route("/api/stats", methods=['GET'])
+def get_stats():
+    total_flats = Apartment.query.count()
+    vacant_flats = Apartment.query.filter_by(resident_id=None).count()
+    occupied_flats = total_flats - vacant_flats
+    
+    total_notices = Notice.query.count()
+    total_complaints = Complaint.query.count()
+    pending_complaints = Complaint.query.filter_by(status='Pending').count()
+    resolved_complaints = Complaint.query.filter_by(status='Resolved').count()
+    
+    return jsonify({
+        "flats": { "total": total_flats, "occupied": occupied_flats, "vacant": vacant_flats },
+        "notices": total_notices,
+        "complaints": { "total": total_complaints, "pending": pending_complaints, "resolved": resolved_complaints }
+    })
+
 # --- NOTICE ROUTES ---
 @app.route("/api/notices", methods=['GET'])
 def get_notices():
@@ -120,7 +137,7 @@ def delete_notice(id):
         return jsonify({"status": "success", "message": "Notice deleted"})
     return jsonify({"message": "Notice not found"}), 404
 
-# --- NEW: PRIVATE NOTICE ROUTES ---
+# --- PRIVATE NOTICE ROUTES ---
 @app.route("/api/admin/private_notice", methods=['POST'])
 @jwt_required()
 def send_private_notice():
@@ -128,7 +145,6 @@ def send_private_notice():
     if current_user.role != 'admin': return jsonify({"message": "Unauthorized"}), 403
     
     data = request.json
-    
     new_notice = PrivateNotice(
         user_id=data.get('user_id'),
         title=data.get('title'),
@@ -143,7 +159,6 @@ def send_private_notice():
 def get_my_private_notices():
     user_email = get_jwt_identity()
     user = User.query.filter_by(email=user_email).first()
-    
     notices = PrivateNotice.query.filter_by(user_id=user.id).order_by(PrivateNotice.created_at.desc()).all()
     output = [{"id": n.id, "title": n.title, "content": n.content, "date": n.created_at.strftime("%Y-%m-%d")} for n in notices]
     return jsonify(output)

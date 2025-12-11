@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import io from 'socket.io-client';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './App.css';
 
 const socket = io('http://127.0.0.1:5000');
@@ -20,6 +21,7 @@ const BMS_Frontend = () => {
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
     
     // Data State
+    const [stats, setStats] = useState(null); // NEW: Holds the counts
     const [residents, setResidents] = useState([]);
     const [notices, setNotices] = useState([]);
     const [privateNotices, setPrivateNotices] = useState([]);
@@ -42,6 +44,12 @@ const BMS_Frontend = () => {
     };
 
     // --- FETCHING ---
+    // NEW: Fetch Public Stats (Runs for everyone)
+    const fetchStats = async () => {
+        const res = await fetch('http://127.0.0.1:5000/api/stats');
+        if(res.ok) setStats(await res.json());
+    };
+
     const fetchResidents = async () => {
         const res = await fetch('http://127.0.0.1:5000/api/admin/users', { headers: { 'Authorization': `Bearer ${user.token}` } });
         if(res.ok) setResidents(await res.json());
@@ -69,6 +77,7 @@ const BMS_Frontend = () => {
 
     useEffect(() => {
         if (!user) return;
+        fetchStats(); // Fetch the correct numbers
         fetchNotices();
         fetchVacant();
         fetchComplaints();
@@ -78,7 +87,19 @@ const BMS_Frontend = () => {
 
         socket.on('receive_message', (data) => setMessages((prev) => [...prev, data]));
         return () => socket.off('receive_message');
-    }, [user]);
+    }, [user, activeTab]); // Refresh when tab changes to keep stats updated
+
+    // --- PREPARE CHART DATA (Using the new Stats) ---
+    const occupancyData = stats ? [
+        { name: 'Occupied', value: stats.flats.occupied },
+        { name: 'Vacant', value: stats.flats.vacant },
+    ] : [];
+    const COLORS = ['#6c5ce7', '#dfe6e9'];
+
+    const complaintData = stats ? [
+        { name: 'Pending', value: stats.complaints.pending },
+        { name: 'Resolved', value: stats.complaints.resolved },
+    ] : [];
 
     // --- HANDLERS ---
     const handleAddFamily = async (e) => {
@@ -100,8 +121,7 @@ const BMS_Frontend = () => {
         if (await handleResponse(res)) {
             const flat = payload.flat.toLowerCase();
             alert(`✅ Family Added!\nLogin: ${flat}@bms.com\nPass: 123456`);
-            fetchResidents();
-            fetchVacant();
+            fetchResidents(); fetchVacant(); fetchStats(); // Refresh stats
             e.target.reset();
         }
     };
@@ -109,7 +129,7 @@ const BMS_Frontend = () => {
     const handleRemoveFamily = async (id) => {
         if(window.confirm("Remove family?")) {
             const res = await fetch(`http://127.0.0.1:5000/api/admin/user/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${user.token}` } });
-            if (await handleResponse(res)) fetchResidents();
+            if (await handleResponse(res)) { fetchResidents(); fetchStats(); }
         }
     };
     const handlePostNotice = async (e) => {
@@ -120,7 +140,7 @@ const BMS_Frontend = () => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ title: formData.get('title'), content: formData.get('content') })
         });
-        if (await handleResponse(res)) { alert("✅ Public Notice Posted!"); fetchNotices(); e.target.reset(); }
+        if (await handleResponse(res)) { alert("✅ Public Notice Posted!"); fetchNotices(); fetchStats(); e.target.reset(); }
     };
     
     const handleSendPrivateNotice = async (e) => {
@@ -137,7 +157,7 @@ const BMS_Frontend = () => {
     const handleDeleteNotice = async (id) => {
         if (window.confirm("Delete notice?")) {
             const res = await fetch(`http://127.0.0.1:5000/api/notices/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${user.token}` } });
-            if (await handleResponse(res)) fetchNotices();
+            if (await handleResponse(res)) { fetchNotices(); fetchStats(); }
         }
     };
     const handlePostComplaint = async (e) => {
@@ -148,7 +168,7 @@ const BMS_Frontend = () => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ subject: formData.get('subject'), description: formData.get('description') })
         });
-        if (await handleResponse(res)) { alert("✅ Complaint Sent!"); fetchComplaints(); e.target.reset(); }
+        if (await handleResponse(res)) { alert("✅ Complaint Sent!"); fetchComplaints(); fetchStats(); e.target.reset(); }
     };
     const handleUpdateComplaint = async (id, newStatus) => {
         const res = await fetch(`http://127.0.0.1:5000/api/complaints/${id}`, {
@@ -156,7 +176,7 @@ const BMS_Frontend = () => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
             body: JSON.stringify({ status: newStatus })
         });
-        if (await handleResponse(res)) fetchComplaints();
+        if (await handleResponse(res)) { fetchComplaints(); fetchStats(); }
     };
     const handleChangePassword = async (e) => {
         e.preventDefault();
@@ -197,7 +217,50 @@ const BMS_Frontend = () => {
             <main className="main-content">
                 <header className="header-welcome"><div><h1>Hello, {user?.name}</h1><p style={{color:'var(--text-secondary)'}}>Welcome to the Building Management System.</p></div><div className="date-badge">{new Date().toDateString()}</div></header>
                 
-                {activeTab === 'dashboard' && <div className="stats-grid"><div className="stat-card purple"><h3>Total Residents</h3><div className="value">{residents.length}</div></div><div className="stat-card blue"><h3>Vacant Flats</h3><div className="value">{vacantFlatsList.length}</div></div><div className="stat-card orange"><h3>Notices</h3><div className="value">{notices.length}</div></div><div className="stat-card green"><h3>Complaints</h3><div className="value">{complaints.length}</div></div></div>}
+                {/* --- DASHBOARD WITH CHARTS --- */}
+                {activeTab === 'dashboard' && stats && (
+                    <div>
+                        {/* 1. Stat Cards (Updated to use 'stats' object) */}
+                        <div className="stats-grid">
+                            <div className="stat-card purple"><h3>Total Residents</h3><div className="value">{stats.flats.occupied}</div></div>
+                            <div className="stat-card blue"><h3>Vacant Flats</h3><div className="value">{stats.flats.vacant}</div></div>
+                            <div className="stat-card orange"><h3>Notices</h3><div className="value">{stats.notices}</div></div>
+                            <div className="stat-card green"><h3>Complaints</h3><div className="value">{stats.complaints.total}</div></div>
+                        </div>
+
+                        {/* 2. Visual Charts */}
+                        <div style={{display:'flex', gap:'20px', flexWrap:'wrap', marginBottom:'30px'}}>
+                            {/* Occupancy Pie Chart */}
+                            <div className="stat-card" style={{flex:1, minWidth:'300px', height:'350px'}}>
+                                <h3>🏠 Occupancy Status</h3>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie data={occupancyData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                            {occupancyData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend verticalAlign="bottom" height={36}/>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* Complaints Bar Chart */}
+                            <div className="stat-card" style={{flex:1, minWidth:'300px', height:'350px'}}>
+                                <h3>⚠️ Complaint Status</h3>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={complaintData} margin={{top: 20, right: 30, left: 20, bottom: 5}}>
+                                        <XAxis dataKey="name" stroke="#8884d8" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="value" fill="#e17055" radius={[10, 10, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 
                 {activeTab === 'add-family' && <div className="form-container"><h3 className="section-title">Add New Family</h3><form onSubmit={handleAddFamily}><div style={{display:'flex',gap:'10px'}}><div className="form-group" style={{flex:1}}><label>First Name</label><input type="text" name="first_name" className="form-control" required/></div><div className="form-group" style={{flex:1}}><label>Last Name</label><input type="text" name="last_name" className="form-control" required/></div></div><div className="form-group"><label>NID Number</label><input type="text" name="nid" className="form-control" required/></div><div className="form-group"><label>Flat Number</label><select name="flat" className="form-control" required><option value="">Select Flat</option>{vacantFlatsList.map(f=><option key={f} value={f}>{f}</option>)}</select></div><div className="form-group"><label>Members</label><input type="number" name="members" className="form-control" required min="1" /></div><div className="form-group"><label>Phone</label><input type="tel" name="phone" className="form-control" required/></div><button type="submit" className="btn-primary">Add Resident</button></form></div>}
                 
