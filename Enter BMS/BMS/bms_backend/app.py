@@ -21,12 +21,12 @@ db = SQLAlchemy(app)
 # --- MODELS ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    full_name = db.Column(db.String(100))
+    full_name = db.Column(db.String(100)) # Stores "FirstName LastName"
     email = db.Column(db.String(100), unique=True)
     password_hash = db.Column(db.String(200))
     role = db.Column(db.String(20), default='resident') 
     phone = db.Column(db.String(20))
-    nid = db.Column(db.String(50))
+    nid = db.Column(db.String(50))     # Added NID
     members_count = db.Column(db.Integer)
     apartment = db.relationship('Apartment', backref='resident', uselist=False)
 
@@ -40,6 +40,15 @@ class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+
+# NEW: Complaint Model
+class Complaint(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    submitted_by = db.Column(db.String(100)) # Name of user
+    subject = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='Pending') # Pending, Resolved
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
 
 # --- AUTH ROUTES ---
@@ -94,7 +103,7 @@ def get_notices():
         "content": n.content, 
         "date_posted": n.created_at.strftime("%Y-%m-%d")
     } for n in notices]
-    return jsonify(output) # Changed to return list directly or handle in frontend
+    return jsonify(output)
 
 @app.route("/api/notices/<int:id>", methods=['DELETE'])
 @jwt_required()
@@ -110,6 +119,38 @@ def delete_notice(id):
         return jsonify({"status": "success", "message": "Notice deleted"})
     return jsonify({"message": "Notice not found"}), 404
 
+# --- COMPLAINT ROUTES (NEW) ---
+@app.route("/api/complaints", methods=['GET'])
+@jwt_required()
+def get_complaints():
+    # Both Admin and Users can see complaints (or you can filter if you want private)
+    complaints = Complaint.query.order_by(Complaint.created_at.desc()).all()
+    output = [{
+        "id": c.id,
+        "submitted_by": c.submitted_by,
+        "subject": c.subject,
+        "description": c.description,
+        "status": c.status,
+        "date": c.created_at.strftime("%Y-%m-%d")
+    } for c in complaints]
+    return jsonify(output)
+
+@app.route("/api/complaints", methods=['POST'])
+@jwt_required()
+def post_complaint():
+    user_email = get_jwt_identity()
+    user = User.query.filter_by(email=user_email).first()
+    
+    data = request.json
+    new_complaint = Complaint(
+        submitted_by=user.full_name, # Auto-fill name
+        subject=data.get('subject'),
+        description=data.get('description')
+    )
+    db.session.add(new_complaint)
+    db.session.commit()
+    return jsonify({"status": "success", "message": "Complaint submitted"})
+
 # --- ADMIN ROUTES ---
 @app.route("/api/admin/add_family", methods=['POST'])
 @jwt_required()
@@ -119,7 +160,7 @@ def add_family():
         return jsonify({"message": "Unauthorized"}), 403
 
     data = request.json
-    flat_no = data.get('flat').upper() # Changed 'flat_no' to 'flat' to match frontend
+    flat_no = data.get('flat').upper()
     
     apartment = Apartment.query.filter_by(unit_number=flat_no).first()
     if not apartment:
@@ -127,17 +168,25 @@ def add_family():
     if apartment.resident_id:
         return jsonify({"message": f"Flat {flat_no} is already occupied."}), 400
     
-    if User.query.filter_by(email=data.get('email')).first():
-        return jsonify({"message": "Email already registered."}), 409
+    # Generate Email if not provided (flat@bms.com)
+    generated_email = f"{flat_no.lower()}@bms.com"
+    
+    if User.query.filter_by(email=generated_email).first():
+        return jsonify({"message": "Flat account already exists."}), 409
 
-    # Default password for new users
+    # Combine First and Last Name
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+    full_name = f"{first_name} {last_name}"
+
     default_pw = "123456" 
 
     new_user = User(
-        full_name=data.get('name'),
-        email=data.get('email'), # Frontend needs to send email or we generate one
+        full_name=full_name,
+        email=generated_email,
         password_hash=generate_password_hash(default_pw),
         phone=data.get('phone'),
+        nid=data.get('nid'),         # Saving NID
         members_count=data.get('members'),
         role='resident'
     )
@@ -148,7 +197,7 @@ def add_family():
     apartment.resident_id = new_user.id
     db.session.commit()
 
-    return jsonify({"status": "success", "message": f"Family added to Flat {flat_no}!"})
+    return jsonify({"status": "success", "message": f"Added {full_name} to {flat_no}"})
 
 @app.route("/api/admin/notices", methods=['POST'])
 @jwt_required()
@@ -189,7 +238,8 @@ def get_all_residents():
             "name": r.full_name,
             "email": r.email,
             "phone": r.phone,
-            "flat": flat, # Changed 'flat_no' to 'flat' for frontend consistency
+            "nid": r.nid, # Send NID to frontend
+            "flat": flat,
             "members": r.members_count
         })
     return jsonify(output)
@@ -219,7 +269,6 @@ def handle_connect():
 
 @socketio.on('send_message')
 def handle_message(data):
-    # Broadcast message to all connected clients
     emit('receive_message', data, broadcast=True)
 
 # --- SETUP ---
@@ -244,11 +293,10 @@ def seed_database():
         )
         db.session.add(admin)
         db.session.commit()
-        print("Login Sucessful")
+        print("Login Successful")
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_database()
-    # Use socketio.run instead of app.run
     socketio.run(app, port=5000, debug=True)
