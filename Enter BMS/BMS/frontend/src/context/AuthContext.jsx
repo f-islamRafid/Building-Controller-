@@ -1,101 +1,59 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI, userAPI } from '../services/api';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const AuthContext = createContext(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
+    // Check if user is logged in on page load
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    const name = localStorage.getItem('full_name');
     if (token) {
-      fetchUserInfo();
-    } else {
-      setLoading(false);
+      setUser({ token, role, name });
     }
-  }, [token]);
-
-  const fetchUserInfo = async () => {
-    try {
-      const response = await userAPI.getUserInfo();
-      if (response.data.status === 'success') {
-        setUser(response.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch user info:', error);
-      // Don't logout on first load if token exists but user info fails
-      // Only logout if we're sure the token is invalid
-      if (error.response?.status === 401) {
-        logout();
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+    setLoading(false);
+  }, []);
 
   const login = async (email, password) => {
     try {
-      const response = await authAPI.login(email, password);
-      if (response.data.status === 'success') {
-        const newToken = response.data.token;
-        const role = response.data.role;
-        localStorage.setItem('token', newToken);
-        localStorage.setItem('userRole', role);
-        setToken(newToken);
-        await fetchUserInfo();
-        return { success: true };
-      }
-      return { success: false, message: response.data.message || 'Login failed' };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Login failed',
-      };
-    }
-  };
+      const response = await fetch('http://127.0.0.1:5000/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-  const register = async (name, email, password) => {
-    try {
-      const response = await authAPI.register(name, email, password);
-      if (response.data.status === 'success') {
-        return { success: true, message: response.data.message };
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('full_name', data.full_name);
+        setUser({ token: data.token, role: data.role, name: data.full_name });
+        return true;
+      } else {
+        throw new Error(data.message);
       }
-      return { success: false, message: response.data.message || 'Registration failed' };
     } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Registration failed',
-      };
+      console.error("Login failed:", error);
+      throw error;
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('userRole');
-    setToken(null);
+    localStorage.removeItem('role');
+    localStorage.removeItem('full_name');
     setUser(null);
   };
 
-  const value = {
-    user,
-    token,
-    loading,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!token,
-    isAdmin: user?.role === 'admin',
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 };
 
+export const useAuth = () => useContext(AuthContext);

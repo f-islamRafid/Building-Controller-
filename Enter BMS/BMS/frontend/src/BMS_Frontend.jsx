@@ -1,125 +1,180 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import io from 'socket.io-client';
 import './App.css';
 
+// Connect to the Backend WebSocket
+const socket = io('http://127.0.0.1:5000');
+
 const BMS_Frontend = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('dashboard');
-
-    // --- MOCK DATA STATE (TEMPORARY DATABASE) ---
     
-    // 1. Residents Data
-    const [residents, setResidents] = useState([
-        { id: 1, name: "Mr. Sharma", flat: "101", members: 4, phone: "9876543210" },
-        { id: 2, name: "Mrs. Gupta", flat: "102", members: 2, phone: "8765432109" },
-    ]);
+    // State for Real Data
+    const [residents, setResidents] = useState([]);
+    const [notices, setNotices] = useState([]);
+    const [vacantFlatsList, setVacantFlatsList] = useState([]);
+    const [messages, setMessages] = useState([]);
+    const [messageInput, setMessageInput] = useState("");
 
-    // 2. Notices Data
-    const [notices, setNotices] = useState([
-        { id: 1, title: "Lift Maintenance", date: "2024-10-24", content: "Lift will be off from 2pm to 4pm." },
-        { id: 2, title: "Diwali Party", date: "2024-11-01", content: "Gather at the clubhouse at 7pm!" },
-    ]);
+    // --- FETCH DATA FROM API ---
+    const fetchResidents = async () => {
+        const res = await fetch('http://127.0.0.1:5000/api/admin/users', {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+        });
+        if(res.ok) setResidents(await res.json());
+    };
 
-    // 3. Chat Messages
-    const [messages, setMessages] = useState([
-        { id: 1, sender: "System", text: "Welcome to the Community Chat!", type: "received" },
-        { id: 2, sender: "Mr. Sharma", text: "Is the water supply issue fixed?", type: "received" },
-    ]);
+    const fetchVacant = async () => {
+        const res = await fetch('http://127.0.0.1:5000/api/apartments/vacant');
+        if(res.ok) setVacantFlatsList(await res.json());
+    };
 
-    // 4. Vacant Flats (Hardcoded list for now)
-    const allFlats = ["101", "102", "103", "104", "201", "202", "203", "204"];
-    
-    // --- FORM HANDLERS ---
+    const fetchNotices = async () => {
+        const res = await fetch('http://127.0.0.1:5000/api/notices');
+        if(res.ok) setNotices(await res.json());
+    };
 
-    // Add Family
-    const handleAddFamily = (e) => {
+    // Initial Load & Chat Setup
+    useEffect(() => {
+        fetchNotices();
+        fetchVacant();
+        if (user?.role === 'admin') fetchResidents();
+
+        // Socket Listeners
+        socket.on('receive_message', (data) => {
+            setMessages((prev) => [...prev, data]);
+        });
+
+        return () => socket.off('receive_message');
+    }, [user]);
+
+
+    // --- HANDLERS ---
+
+    const handleAddFamily = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const newResident = {
-            id: Date.now(),
-            name: formData.get('name'),
-            flat: formData.get('flat'),
+        
+        // We generate a fake email for them if not provided, just for the system
+        const name = formData.get('name');
+        const flat = formData.get('flat');
+        const email = `${flat.toLowerCase()}@bms.com`; // Auto-generate email based on flat
+
+        const payload = {
+            name: name,
+            flat: flat,
             members: formData.get('members'),
-            phone: formData.get('phone')
+            phone: formData.get('phone'),
+            email: email 
         };
-        setResidents([...residents, newResident]);
-        alert("Family Added Successfully!");
-        e.target.reset(); // Clear form
-    };
 
-    // Remove Family
-    const handleRemoveFamily = (id) => {
-        if(window.confirm("Are you sure you want to remove this family?")) {
-            setResidents(residents.filter(r => r.id !== id));
+        const res = await fetch('http://127.0.0.1:5000/api/admin/add_family', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert(`Family Added! Login Email: ${email} | Pass: 123456`);
+            fetchResidents();
+            fetchVacant();
+            e.target.reset();
+        } else {
+            const err = await res.json();
+            alert("Error: " + err.message);
         }
     };
 
-    // Post Notice
-    const handlePostNotice = (e) => {
+    const handleRemoveFamily = async (id) => {
+        if(window.confirm("Are you sure you want to remove this family?")) {
+            const res = await fetch(`http://127.0.0.1:5000/api/admin/user/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (res.ok) fetchResidents();
+        }
+    };
+
+    const handlePostNotice = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const newNotice = {
-            id: Date.now(),
+        const payload = {
             title: formData.get('title'),
-            content: formData.get('content'),
-            date: new Date().toISOString().split('T')[0]
+            content: formData.get('content')
         };
-        setNotices([newNotice, ...notices]);
-        alert("Notice Posted!");
-        e.target.reset();
-    };
 
-    // DELETE NOTICE (New Feature)
-    const handleDeleteNotice = (id) => {
-        if (window.confirm("Are you sure you want to delete this notice?")) {
-            const updatedNotices = notices.filter((notice) => notice.id !== id);
-            setNotices(updatedNotices);
+        const res = await fetch('http://127.0.0.1:5000/api/admin/notices', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert("Notice Posted!");
+            fetchNotices();
+            e.target.reset();
         }
     };
 
-    // Send Chat
+    const handleDeleteNotice = async (id) => {
+        if (window.confirm("Delete this notice?")) {
+            const res = await fetch(`http://127.0.0.1:5000/api/notices/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if(res.ok) fetchNotices();
+        }
+    };
+
     const handleSendMessage = (e) => {
         e.preventDefault();
-        const input = e.target.elements.messageInput;
-        if (!input.value.trim()) return;
+        if (!messageInput.trim()) return;
 
-        const newMessage = {
+        const messageData = {
             id: Date.now(),
-            sender: "You",
-            text: input.value,
-            type: "sent"
+            sender: user.name || "User",
+            text: messageInput,
+            type: "sent" // Frontend logic to style own messages
         };
-        setMessages([...messages, newMessage]);
-        input.value = ""; // Clear input
-    };
 
-    // Calculate Vacant Flats
-    const occupiedFlats = residents.map(r => r.flat);
-    const vacantFlatsList = allFlats.filter(flat => !occupiedFlats.includes(flat));
+        // Emit to backend
+        socket.emit('send_message', messageData);
+        setMessageInput("");
+    };
 
     return (
         <div className="dashboard-layout">
-            
-            {/* SIDEBAR */}
             <aside className="sidebar">
                 <div className="logo-section"><h2>BMS Portal</h2></div>
                 <ul className="nav-links">
                     <li className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
                         <span>📊</span> Dashboard
                     </li>
-                    <li className={`nav-item ${activeTab === 'add-family' ? 'active' : ''}`} onClick={() => setActiveTab('add-family')}>
-                        <span>➕</span> Add Family
-                    </li>
-                    <li className={`nav-item ${activeTab === 'residents' ? 'active' : ''}`} onClick={() => setActiveTab('residents')}>
-                        <span>👥</span> View Residents
-                    </li>
-                    <li className={`nav-item ${activeTab === 'vacant' ? 'active' : ''}`} onClick={() => setActiveTab('vacant')}>
+                    {/* Only Admin sees these */}
+                    {user?.role === 'admin' && (
+                        <>
+                            <li className={`nav-item ${activeTab === 'add-family' ? 'active' : ''}`} onClick={() => setActiveTab('add-family')}>
+                                <span>➕</span> Add Family
+                            </li>
+                            <li className={`nav-item ${activeTab === 'residents' ? 'active' : ''}`} onClick={() => setActiveTab('residents')}>
+                                <span>👥</span> Residents
+                            </li>
+                            <li className={`nav-item ${activeTab === 'notices' ? 'active' : ''}`} onClick={() => setActiveTab('notices')}>
+                                <span>📢</span> Manage Notices
+                            </li>
+                        </>
+                    )}
+                     <li className={`nav-item ${activeTab === 'vacant' ? 'active' : ''}`} onClick={() => setActiveTab('vacant')}>
                         <span>🏠</span> Vacant Flats
-                    </li>
-                    <li className={`nav-item ${activeTab === 'notices' ? 'active' : ''}`} onClick={() => setActiveTab('notices')}>
-                        <span>📢</span> Manage Notices
                     </li>
                     <li className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
                         <span>💬</span> Chat Box
@@ -130,17 +185,15 @@ const BMS_Frontend = () => {
                 </div>
             </aside>
 
-            {/* MAIN CONTENT */}
             <main className="main-content">
                 <header className="header-welcome">
                     <div>
-                        <h1>Admin Dashboard</h1>
-                        <p style={{color: '#aaa'}}>Manage your building efficiently.</p>
+                        <h1>Hello, {user?.name}</h1>
+                        <p style={{color: '#aaa'}}>Welcome to the Building Management System.</p>
                     </div>
                     <div className="date-badge">{new Date().toDateString()}</div>
                 </header>
 
-                {/* 1. DASHBOARD HOME */}
                 {activeTab === 'dashboard' && (
                     <div className="stats-grid">
                         <div className="stat-card purple">
@@ -152,17 +205,12 @@ const BMS_Frontend = () => {
                             <div className="value">{vacantFlatsList.length}</div>
                         </div>
                         <div className="stat-card orange">
-                            <h3>Notices Posted</h3>
+                            <h3>Notices</h3>
                             <div className="value">{notices.length}</div>
-                        </div>
-                        <div className="stat-card green">
-                            <h3>System Status</h3>
-                            <div className="value" style={{color: '#00b894'}}>Online</div>
                         </div>
                     </div>
                 )}
 
-                {/* 2. ADD FAMILY FORM */}
                 {activeTab === 'add-family' && (
                     <div className="form-container">
                         <h3 className="section-title">Add New Family</h3>
@@ -181,42 +229,35 @@ const BMS_Frontend = () => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Number of Members</label>
+                                <label>Members</label>
                                 <input type="number" name="members" className="form-control" required min="1" />
                             </div>
                             <div className="form-group">
-                                <label>Contact Phone</label>
-                                <input type="tel" name="phone" className="form-control" required placeholder="Ex: 9876543210" />
+                                <label>Phone</label>
+                                <input type="tel" name="phone" className="form-control" required />
                             </div>
                             <button type="submit" className="btn-primary">Add Resident</button>
                         </form>
                     </div>
                 )}
 
-                {/* 3. VIEW / REMOVE RESIDENTS */}
                 {activeTab === 'residents' && (
                     <div className="table-container">
                         <h3 className="section-title">Resident List</h3>
                         <table className="styled-table">
                             <thead>
                                 <tr>
-                                    <th>Flat No</th>
-                                    <th>Name</th>
-                                    <th>Members</th>
-                                    <th>Phone</th>
-                                    <th>Action</th>
+                                    <th>Flat</th><th>Name</th><th>Members</th><th>Phone</th><th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {residents.map(resident => (
-                                    <tr key={resident.id}>
-                                        <td><b>{resident.flat}</b></td>
-                                        <td>{resident.name}</td>
-                                        <td>{resident.members}</td>
-                                        <td>{resident.phone}</td>
-                                        <td>
-                                            <button className="btn-danger" onClick={() => handleRemoveFamily(resident.id)}>Remove</button>
-                                        </td>
+                                {residents.map(r => (
+                                    <tr key={r.id}>
+                                        <td><b>{r.flat}</b></td>
+                                        <td>{r.name}</td>
+                                        <td>{r.members}</td>
+                                        <td>{r.phone}</td>
+                                        <td><button className="btn-danger" onClick={() => handleRemoveFamily(r.id)}>Remove</button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -224,94 +265,55 @@ const BMS_Frontend = () => {
                     </div>
                 )}
 
-                {/* 4. VACANT FLATS VIEW */}
                 {activeTab === 'vacant' && (
                     <div className="content-section">
-                        <h3 className="section-title">Vacant Flats Availability</h3>
+                        <h3 className="section-title">Vacant Flats</h3>
                         <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
-                            {vacantFlatsList.length > 0 ? vacantFlatsList.map(flat => (
-                                <div key={flat} style={{
-                                    padding: '20px', 
-                                    background: '#dfe6e9', 
-                                    borderRadius: '10px', 
-                                    width: '100px', 
-                                    textAlign: 'center',
-                                    fontWeight: 'bold',
-                                    color: '#636e72'
-                                }}>
+                            {vacantFlatsList.map(flat => (
+                                <div key={flat} style={{padding: '20px', background: '#dfe6e9', borderRadius: '10px', fontWeight: 'bold'}}>
                                     Flat {flat}
-                                </div>
-                            )) : <p>No flats available!</p>}
-                        </div>
-                    </div>
-                )}
-
-                {/* 5. POST NOTICE WITH DELETE OPTION */}
-                {activeTab === 'notices' && (
-                    <div>
-                        <div className="form-container" style={{marginBottom: '30px'}}>
-                            <h3 className="section-title">Create New Notice</h3>
-                            <form onSubmit={handlePostNotice}>
-                                <div className="form-group">
-                                    <label>Notice Title</label>
-                                    <input type="text" name="title" className="form-control" required placeholder="Ex: Water Maintenance" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Details</label>
-                                    <textarea name="content" className="form-control" rows="3" required placeholder="Enter details here..."></textarea>
-                                </div>
-                                <button type="submit" className="btn-primary">Post Notice</button>
-                            </form>
-                        </div>
-
-                        {/* Display Notices List */}
-                        <h3 className="section-title">Current Notices</h3>
-                        <div className="stats-grid">
-                            {notices.map(notice => (
-                                <div key={notice.id} className="stat-card blue" style={{position: 'relative'}}>
-                                    <div style={{display:'flex', justifyContent:'space-between', alignItems: 'center'}}>
-                                        <h3>{notice.title}</h3>
-                                        <small>{notice.date}</small>
-                                    </div>
-                                    <p style={{marginTop: '10px', color: '#555', marginBottom: '15px'}}>{notice.content}</p>
-                                    
-                                    {/* DELETE BUTTON */}
-                                    <button 
-                                        onClick={() => handleDeleteNotice(notice.id)}
-                                        style={{
-                                            backgroundColor: '#ff7675',
-                                            color: 'white',
-                                            border: 'none',
-                                            padding: '8px 12px',
-                                            borderRadius: '5px',
-                                            cursor: 'pointer',
-                                            fontSize: '0.85rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '5px'
-                                        }}
-                                    >
-                                        🗑 Delete
-                                    </button>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* 6. CHAT BOX */}
+                {activeTab === 'notices' && (
+                    <div>
+                        <div className="form-container" style={{marginBottom: '30px'}}>
+                            <h3 className="section-title">Post Notice</h3>
+                            <form onSubmit={handlePostNotice}>
+                                <input type="text" name="title" className="form-control" required placeholder="Title" style={{marginBottom: '10px'}}/>
+                                <textarea name="content" className="form-control" rows="3" required placeholder="Content"></textarea>
+                                <button type="submit" className="btn-primary" style={{marginTop: '10px'}}>Post</button>
+                            </form>
+                        </div>
+                        <div className="stats-grid">
+                            {notices.map(n => (
+                                <div key={n.id} className="stat-card blue">
+                                    <h3>{n.title}</h3>
+                                    <small>{n.date_posted}</small>
+                                    <p>{n.content}</p>
+                                    {user.role === 'admin' && (
+                                        <button className="btn-danger" style={{marginTop:'10px'}} onClick={() => handleDeleteNotice(n.id)}>Delete</button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'chat' && (
                     <div className="chat-window">
                         <div className="chat-messages">
-                            {messages.map(msg => (
-                                <div key={msg.id} className={`message ${msg.type}`}>
-                                    <strong>{msg.sender}</strong><br/>
-                                    {msg.text}
+                            {messages.map((msg, i) => (
+                                <div key={i} className={`message ${msg.sender === user?.name ? 'sent' : 'received'}`}>
+                                    <strong>{msg.sender}</strong><br/>{msg.text}
                                 </div>
                             ))}
                         </div>
                         <form className="chat-input-area" onSubmit={handleSendMessage}>
-                            <input type="text" name="messageInput" className="form-control" placeholder="Type a message..." autoComplete="off" />
+                            <input type="text" value={messageInput} onChange={e=>setMessageInput(e.target.value)} className="form-control" placeholder="Type a message..." />
                             <button type="submit" className="btn-primary">Send</button>
                         </form>
                     </div>
