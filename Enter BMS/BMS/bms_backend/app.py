@@ -4,7 +4,7 @@ eventlet.monkey_patch()
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin  
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from flask_socketio import SocketIO, emit 
 import datetime
@@ -68,7 +68,8 @@ class ChatMessage(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.datetime.now)
 
 # --- AUTH ROUTES ---
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['POST', 'OPTIONS'])  # <--- Allow OPTIONS
+@cross_origin()  # <--- FORCE THE CORS HEADERS
 def login():
     data = request.json
     email = data.get('email')
@@ -78,6 +79,8 @@ def login():
         token = create_access_token(identity=user.email)
         return jsonify({"status": "success", "token": token, "role": user.role, "full_name": user.full_name, "user_id": user.id})
     return jsonify({"status": "error", "message": "Invalid Email or Password"}), 401
+
+
 
 @app.route("/api/change_password", methods=['POST'])
 @jwt_required()
