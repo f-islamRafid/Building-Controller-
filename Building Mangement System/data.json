@@ -1,0 +1,43 @@
+{
+    "families": [
+        {
+            "flat_no": "1B",
+            "head_member": "Abu Sayem Anik",
+            "phone": "3",
+            "members": 3,
+            "email": "anik@gmail.com",
+            "password_hash": "$2b$12$AKzAiwrDzbJXNo2HfOKObujjGQc28d3YLKtqNe7zNSKVpcduOrE12",
+            "nid": "4238429423"
+        },
+        {
+            "flat_no": "2A",
+            "head_member": "Tahmidul Alam Tasfiq",
+            "phone": "01928323232",
+            "members": 6,
+            "email": "tasfiq@gmail.com",
+            "password_hash": "$2b$12$khCaP4FsU.bwd/VKqaSOhuQNwIP8I1gzj4q3jEfqZ62/lI50ZKMlu",
+            "nid": "8932748932"
+        },
+        {
+            "flat_no": "2B",
+            "head_member": "Shaharin Oni",
+            "phone": "01872844541",
+            "members": 5,
+            "email": "onira1908@gmail.com",
+            "password_hash": "$2b$12$eIygVznsFbHtEiQILxiuqeyqgnkOP5sS.mnc96JnYYRfoI4B.CKJy",
+            "nid": "9302920323"
+        }
+    ],
+    "notices": [
+        {
+            "title": "Electricity Issues",
+            "content": "Electricity will not be available due to some unavoidable circumstances",
+            "date_posted": "2025-12-07 21:21"
+        },
+        {
+            "title": "Home Rent Issue",
+            "content": "Dear Resident, please pay you due amount within next 2 days. Thank you!",
+            "date_posted": "2025-12-07 21:22"
+        }
+    ]
+}

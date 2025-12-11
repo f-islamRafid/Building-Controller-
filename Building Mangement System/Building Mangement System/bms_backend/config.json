@@ -1,0 +1,12 @@
+{
+    "admin_email": "admin@bms.com",
+    "admin_password_hash": "$2b$12$1vnA829gQB.PQ.WQsSIm7eImLRkXt/bUKtf8O0DmJ9Bi4aC23Z5om",
+    "total_flats": [
+        "1A",
+        "1B",
+        "2A",
+        "2B",
+        "3A",
+        "3B"
+    ]
+}

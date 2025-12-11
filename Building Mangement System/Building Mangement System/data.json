@@ -1,0 +1,41 @@
+{
+    "families": [
+        {
+            "flat_no": "1A",
+            "head_member": "Shaharin Oni",
+            "phone": "01872844541",
+            "members": 3,
+            "email": "onira1908@gmail.com",
+            "password_hash": "$2b$12$tX7bxm2RXC3hG2T6xAVfiuGw32a9l19EAYcTkUY3Iu5WZ/ihi24OC",
+            "nid": "2342121932"
+        },
+        {
+            "flat_no": "2B",
+            "head_member": "Tasfia Islam",
+            "phone": "0123323232",
+            "members": 5,
+            "email": "tushulaptop@gmail.com",
+            "password_hash": "$2b$12$bBVapwDyPGjjQxJIfb2NWuw4BZM6PE4NYici4muv6GZ3GQ0Gh6IF2",
+            "nid": "9368732232"
+        },
+        {
+            "flat_no": "3B",
+            "head_member": "Jisan Khan",
+            "phone": "019232323",
+            "members": 4,
+            "email": "jisan@gmail.com",
+            "password_hash": "$2b$12$kHmon3vt9qeD3dIf.NMlzeTJRTWIrn0qkqR8z9U5t1ysh.cryEtpK",
+            "nid": "93231312331"
+        },
+        {
+            "flat_no": "2A",
+            "head_member": "Rahat Khan",
+            "phone": "017222932",
+            "members": 6,
+            "email": "rahat@gmail.com",
+            "password_hash": "$2b$12$R9ruYB6TKQqLvQs/d0R8Wecct9tnv0v0eVq9QcIxZSb7Wsrj2wCOu",
+            "nid": "9234212131"
+        }
+    ],
+    "notices": []
+}
