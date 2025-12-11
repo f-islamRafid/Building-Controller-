@@ -15,6 +15,7 @@ const BMS_Frontend = () => {
     // State for Real Data
     const [residents, setResidents] = useState([]);
     const [notices, setNotices] = useState([]);
+    const [complaints, setComplaints] = useState([]);
     const [vacantFlatsList, setVacantFlatsList] = useState([]);
     const [messages, setMessages] = useState([]);
     const [messageInput, setMessageInput] = useState("");
@@ -37,10 +38,18 @@ const BMS_Frontend = () => {
         if(res.ok) setNotices(await res.json());
     };
 
+    const fetchComplaints = async () => {
+        const res = await fetch('http://127.0.0.1:5000/api/complaints', {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+        });
+        if(res.ok) setComplaints(await res.json());
+    };
+
     // Initial Load & Chat Setup
     useEffect(() => {
         fetchNotices();
         fetchVacant();
+        if (user) fetchComplaints();
         if (user?.role === 'admin') fetchResidents();
 
         // Socket Listeners
@@ -58,17 +67,14 @@ const BMS_Frontend = () => {
         e.preventDefault();
         const formData = new FormData(e.target);
         
-        // We generate a fake email for them if not provided, just for the system
-        const name = formData.get('name');
-        const flat = formData.get('flat');
-        const email = `${flat.toLowerCase()}@bms.com`; // Auto-generate email based on flat
-
+        // Prepare Payload with Split Names and NID
         const payload = {
-            name: name,
-            flat: flat,
+            first_name: formData.get('first_name'),
+            last_name: formData.get('last_name'),
+            nid: formData.get('nid'),
+            flat: formData.get('flat'),
             members: formData.get('members'),
-            phone: formData.get('phone'),
-            email: email 
+            phone: formData.get('phone')
         };
 
         const res = await fetch('http://127.0.0.1:5000/api/admin/add_family', {
@@ -81,7 +87,8 @@ const BMS_Frontend = () => {
         });
 
         if (res.ok) {
-            alert(`Family Added! Login Email: ${email} | Pass: 123456`);
+            const flat = payload.flat.toLowerCase();
+            alert(`Family Added!\nLogin Email: ${flat}@bms.com\nPass: 123456`);
             fetchResidents();
             fetchVacant();
             e.target.reset();
@@ -135,6 +142,30 @@ const BMS_Frontend = () => {
         }
     };
 
+    const handlePostComplaint = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const payload = {
+            subject: formData.get('subject'),
+            description: formData.get('description')
+        };
+
+        const res = await fetch('http://127.0.0.1:5000/api/complaints', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert("Complaint Submitted Successfully!");
+            fetchComplaints();
+            e.target.reset();
+        }
+    };
+
     const handleSendMessage = (e) => {
         e.preventDefault();
         if (!messageInput.trim()) return;
@@ -143,10 +174,8 @@ const BMS_Frontend = () => {
             id: Date.now(),
             sender: user.name || "User",
             text: messageInput,
-            type: "sent" // Frontend logic to style own messages
+            type: "sent"
         };
-
-        // Emit to backend
         socket.emit('send_message', messageData);
         setMessageInput("");
     };
@@ -159,7 +188,8 @@ const BMS_Frontend = () => {
                     <li className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
                         <span>📊</span> Dashboard
                     </li>
-                    {/* Only Admin sees these */}
+                    
+                    {/* Admin Only Tabs */}
                     {user?.role === 'admin' && (
                         <>
                             <li className={`nav-item ${activeTab === 'add-family' ? 'active' : ''}`} onClick={() => setActiveTab('add-family')}>
@@ -168,11 +198,16 @@ const BMS_Frontend = () => {
                             <li className={`nav-item ${activeTab === 'residents' ? 'active' : ''}`} onClick={() => setActiveTab('residents')}>
                                 <span>👥</span> Residents
                             </li>
-                            <li className={`nav-item ${activeTab === 'notices' ? 'active' : ''}`} onClick={() => setActiveTab('notices')}>
-                                <span>📢</span> Manage Notices
-                            </li>
                         </>
                     )}
+                    
+                    {/* Shared Tabs */}
+                    <li className={`nav-item ${activeTab === 'notices' ? 'active' : ''}`} onClick={() => setActiveTab('notices')}>
+                        <span>📢</span> Notices
+                    </li>
+                    <li className={`nav-item ${activeTab === 'complaints' ? 'active' : ''}`} onClick={() => setActiveTab('complaints')}>
+                        <span>⚠️</span> Complaints
+                    </li>
                      <li className={`nav-item ${activeTab === 'vacant' ? 'active' : ''}`} onClick={() => setActiveTab('vacant')}>
                         <span>🏠</span> Vacant Flats
                     </li>
@@ -194,11 +229,12 @@ const BMS_Frontend = () => {
                     <div className="date-badge">{new Date().toDateString()}</div>
                 </header>
 
+                {/* --- DASHBOARD --- */}
                 {activeTab === 'dashboard' && (
                     <div className="stats-grid">
                         <div className="stat-card purple">
                             <h3>Total Residents</h3>
-                            <div className="value">{residents.length}</div>
+                            <div className="value">{residents.length > 0 ? residents.length : "Loading..."}</div>
                         </div>
                         <div className="stat-card blue">
                             <h3>Vacant Flats</h3>
@@ -208,17 +244,34 @@ const BMS_Frontend = () => {
                             <h3>Notices</h3>
                             <div className="value">{notices.length}</div>
                         </div>
+                         <div className="stat-card green">
+                            <h3>Open Complaints</h3>
+                            <div className="value">{complaints.length}</div>
+                        </div>
                     </div>
                 )}
 
+                {/* --- ADD FAMILY (Admin Only) --- */}
                 {activeTab === 'add-family' && (
                     <div className="form-container">
                         <h3 className="section-title">Add New Family</h3>
                         <form onSubmit={handleAddFamily}>
-                            <div className="form-group">
-                                <label>Head of Family Name</label>
-                                <input type="text" name="name" className="form-control" required placeholder="Ex: Mr. John Doe" />
+                            <div style={{display:'flex', gap:'10px'}}>
+                                <div className="form-group" style={{flex:1}}>
+                                    <label>First Name</label>
+                                    <input type="text" name="first_name" className="form-control" required placeholder="John" />
+                                </div>
+                                <div className="form-group" style={{flex:1}}>
+                                    <label>Last Name</label>
+                                    <input type="text" name="last_name" className="form-control" required placeholder="Doe" />
+                                </div>
                             </div>
+                            
+                            <div className="form-group">
+                                <label>NID Number</label>
+                                <input type="text" name="nid" className="form-control" required placeholder="Ex: 123456789" />
+                            </div>
+
                             <div className="form-group">
                                 <label>Flat Number</label>
                                 <select name="flat" className="form-control" required>
@@ -229,7 +282,7 @@ const BMS_Frontend = () => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Members</label>
+                                <label>Total Family Members</label>
                                 <input type="number" name="members" className="form-control" required min="1" />
                             </div>
                             <div className="form-group">
@@ -241,13 +294,14 @@ const BMS_Frontend = () => {
                     </div>
                 )}
 
+                {/* --- RESIDENTS LIST --- */}
                 {activeTab === 'residents' && (
                     <div className="table-container">
                         <h3 className="section-title">Resident List</h3>
                         <table className="styled-table">
                             <thead>
                                 <tr>
-                                    <th>Flat</th><th>Name</th><th>Members</th><th>Phone</th><th>Action</th>
+                                    <th>Flat</th><th>Name</th><th>NID</th><th>Members</th><th>Phone</th><th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -255,6 +309,7 @@ const BMS_Frontend = () => {
                                     <tr key={r.id}>
                                         <td><b>{r.flat}</b></td>
                                         <td>{r.name}</td>
+                                        <td>{r.nid}</td>
                                         <td>{r.members}</td>
                                         <td>{r.phone}</td>
                                         <td><button className="btn-danger" onClick={() => handleRemoveFamily(r.id)}>Remove</button></td>
@@ -265,29 +320,19 @@ const BMS_Frontend = () => {
                     </div>
                 )}
 
-                {activeTab === 'vacant' && (
-                    <div className="content-section">
-                        <h3 className="section-title">Vacant Flats</h3>
-                        <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
-                            {vacantFlatsList.map(flat => (
-                                <div key={flat} style={{padding: '20px', background: '#dfe6e9', borderRadius: '10px', fontWeight: 'bold'}}>
-                                    Flat {flat}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
+                {/* --- NOTICES (Read Only for Users, Edit for Admin) --- */}
                 {activeTab === 'notices' && (
                     <div>
-                        <div className="form-container" style={{marginBottom: '30px'}}>
-                            <h3 className="section-title">Post Notice</h3>
-                            <form onSubmit={handlePostNotice}>
-                                <input type="text" name="title" className="form-control" required placeholder="Title" style={{marginBottom: '10px'}}/>
-                                <textarea name="content" className="form-control" rows="3" required placeholder="Content"></textarea>
-                                <button type="submit" className="btn-primary" style={{marginTop: '10px'}}>Post</button>
-                            </form>
-                        </div>
+                        {user.role === 'admin' && (
+                            <div className="form-container" style={{marginBottom: '30px'}}>
+                                <h3 className="section-title">Post Notice</h3>
+                                <form onSubmit={handlePostNotice}>
+                                    <input type="text" name="title" className="form-control" required placeholder="Title" style={{marginBottom: '10px'}}/>
+                                    <textarea name="content" className="form-control" rows="3" required placeholder="Content"></textarea>
+                                    <button type="submit" className="btn-primary" style={{marginTop: '10px'}}>Post</button>
+                                </form>
+                            </div>
+                        )}
                         <div className="stats-grid">
                             {notices.map(n => (
                                 <div key={n.id} className="stat-card blue">
@@ -303,6 +348,55 @@ const BMS_Frontend = () => {
                     </div>
                 )}
 
+                {/* --- COMPLAINTS (NEW) --- */}
+                {activeTab === 'complaints' && (
+                    <div>
+                        <div className="form-container" style={{marginBottom: '30px'}}>
+                            <h3 className="section-title">Submit a Complaint</h3>
+                            <form onSubmit={handlePostComplaint}>
+                                <div className="form-group">
+                                    <label>Subject</label>
+                                    <input type="text" name="subject" className="form-control" required placeholder="e.g., Water Leaking" />
+                                </div>
+                                <div className="form-group">
+                                    <label>Description</label>
+                                    <textarea name="description" className="form-control" rows="2" required placeholder="Describe the issue..."></textarea>
+                                </div>
+                                <button type="submit" className="btn-primary" style={{backgroundColor: '#e17055'}}>Submit Complaint</button>
+                            </form>
+                        </div>
+
+                        <h3 className="section-title">Recent Complaints</h3>
+                        <div className="stats-grid">
+                            {complaints.length > 0 ? complaints.map(c => (
+                                <div key={c.id} className="stat-card orange">
+                                    <div style={{display:'flex', justifyContent:'space-between'}}>
+                                        <h3>{c.subject}</h3>
+                                        <small>{c.status}</small>
+                                    </div>
+                                    <small style={{color: '#666'}}>By: {c.submitted_by} on {c.date}</small>
+                                    <p style={{marginTop:'10px'}}>{c.description}</p>
+                                </div>
+                            )) : <p>No complaints submitted yet.</p>}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- VACANT FLATS --- */}
+                {activeTab === 'vacant' && (
+                    <div className="content-section">
+                        <h3 className="section-title">Vacant Flats</h3>
+                        <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
+                            {vacantFlatsList.map(flat => (
+                                <div key={flat} style={{padding: '20px', background: '#dfe6e9', borderRadius: '10px', fontWeight: 'bold'}}>
+                                    Flat {flat}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- CHAT --- */}
                 {activeTab === 'chat' && (
                     <div className="chat-window">
                         <div className="chat-messages">
