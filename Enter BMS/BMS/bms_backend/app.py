@@ -4,10 +4,11 @@ eventlet.monkey_patch()
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_cors import CORS, cross_origin  
+from flask_cors import CORS, cross_origin 
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from flask_socketio import SocketIO, emit 
 import datetime
+import os # <--- ADDED: For environment variable handling
 
 app = Flask(__name__)
 
@@ -18,7 +19,18 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 # --- CONFIGURATION ---
 app.config["JWT_SECRET_KEY"] = "bms-secret-key"
 jwt = JWTManager(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+
+# --- NEW POSTGRESQL/SQLITE CONFIGURATION ---
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    # Render's Internal Connection URL uses 'postgres://', but SQLAlchemy requires 'postgresql://'
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1) 
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    # Fallback for local development
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users_local.db' 
+# --- END NEW CONFIG ---
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -68,8 +80,8 @@ class ChatMessage(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.datetime.now)
 
 # --- AUTH ROUTES ---
-@app.route('/login', methods=['POST', 'OPTIONS'])  # <--- Allow OPTIONS
-@cross_origin()  # <--- FORCE THE CORS HEADERS
+@app.route('/login', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def login():
     data = request.json
     email = data.get('email')
@@ -79,7 +91,6 @@ def login():
         token = create_access_token(identity=user.email)
         return jsonify({"status": "success", "token": token, "role": user.role, "full_name": user.full_name, "user_id": user.id})
     return jsonify({"status": "error", "message": "Invalid Email or Password"}), 401
-
 
 
 @app.route("/api/change_password", methods=['POST'])
@@ -285,33 +296,39 @@ def handle_message(data):
     db.session.commit()
     emit('receive_message', data, broadcast=True)
 
-# --- 2. NUCLEAR ADMIN FIX (Auto-Run on Start) ---
-with app.app_context():
-    db.create_all()
-    
-    # Create Flats if missing
-    if not Apartment.query.first():
-        print("Creating Building Flats...")
-        floors = 5
-        units = ['A', 'B']
-        for f in range(1, floors + 1):
-            for u in units:
-                unit_num = f"{f}{u}"
-                db.session.add(Apartment(unit_number=unit_num, floor=f))
+# --- ONE-TIME SETUP ROUTE FOR POSTGRESQL MIGRATION (TEMPORARY) ---
+# WARNING: DO NOT RUN THIS MORE THAN ONCE ON PRODUCTION!
+@app.route('/database-setup-migrate', methods=['GET'])
+def database_setup_migrate():
+    with app.app_context():
+        # This creates all tables on the *new* PostgreSQL database
+        db.create_all() 
+        
+        # --- Flats Creation ---
+        if not Apartment.query.first():
+            print("Creating Building Flats...")
+            floors = 5
+            units = ['A', 'B']
+            for f in range(1, floors + 1):
+                for u in units:
+                    unit_num = f"{f}{u}"
+                    db.session.add(Apartment(unit_number=unit_num, floor=f))
+            db.session.commit()
+        
+        # --- Admin User Seeding ---
+        admin = User.query.filter_by(email="admin@bms.com").first()
+        if not admin:
+            admin = User(full_name="System Admin", email="admin@bms.com", role="admin")
+            db.session.add(admin)
+        
+        admin.password_hash = generate_password_hash("ABCdef123@")
         db.session.commit()
-
-    # --- FORCE ADMIN RESET (Fixes "Login Failed") ---
-    admin = User.query.filter_by(email="admin@bms.com").first()
+        print("✅ ADMIN READY: admin@bms.com / ABCdef123@")
     
-    # If admin doesn't exist, create him
-    if not admin:
-        admin = User(full_name="System Admin", email="admin@bms.com", role="admin")
-        db.session.add(admin)
-    
-    # ALWAYS reset the password to the correct one
-    admin.password_hash = generate_password_hash("ABCdef123@")
-    db.session.commit()
-    print("✅ ADMIN READY: admin@bms.com / ABCdef123@")
+    return jsonify({"status": "success", "message": "PostgreSQL Setup Complete! Tables and Admin created."})
 
+
+# --- APP RUNNER ---
 if __name__ == '__main__':
+    # IMPORTANT: The automatic db.create_all() is GONE.
     socketio.run(app, port=5000, debug=True)
