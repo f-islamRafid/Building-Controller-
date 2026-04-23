@@ -8,7 +8,7 @@ from flask_cors import CORS, cross_origin
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from flask_socketio import SocketIO, emit 
 import datetime
-import os # <--- ADDED: For environment variable handling
+import os
 
 app = Flask(__name__)
 
@@ -23,7 +23,7 @@ jwt = JWTManager(app)
 # --- NEW POSTGRESQL/SQLITE CONFIGURATION ---
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    # Render's Internal Connection URL uses 'postgres://', but SQLAlchemy requires 'postgresql://'
+    
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1) 
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 else:
@@ -297,7 +297,7 @@ def handle_message(data):
     emit('receive_message', data, broadcast=True)
 
 # --- ONE-TIME SETUP ROUTE FOR POSTGRESQL MIGRATION (TEMPORARY) ---
-# WARNING: DO NOT RUN THIS MORE THAN ONCE ON PRODUCTION!
+
 @app.route('/database-setup-migrate', methods=['GET'])
 def database_setup_migrate():
     with app.app_context():
@@ -330,5 +330,5 @@ def database_setup_migrate():
 
 # --- APP RUNNER ---
 if __name__ == '__main__':
-    # IMPORTANT: The automatic db.create_all() is GONE.
     socketio.run(app, port=5000, debug=True)
+    
